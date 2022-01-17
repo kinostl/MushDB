@@ -9,7 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "better-sqlite3": "^7.4.6",
-    "sshpk": "^1.17.0"
+    "better-sqlite3": "^7.4.6"
   }
 }
