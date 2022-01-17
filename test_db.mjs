@@ -25,6 +25,8 @@ console.log('perms (ids are all group ids)')
 console.log('users all have proxy groups')
 console.table(mushDb.db.prepare('SELECT * FROM permissions').all())
 
+mushDb.addPermission(1, user, user, 'owners')
+console.table(mushDb.db.prepare('SELECT * FROM permissions').all())
 console.log('json test')
 console.table(
   mushDb.db
@@ -74,3 +76,10 @@ mushDb.patchThing(createdThing, user, {
   description: 'I do not like movies'
 })
 console.log(mushDb.getThing(createdThing, user))
+
+console.log('Destroy thing')
+mushDb.destroyThing(createdThing, user)
+console.log(mushDb.getThing(createdThing, user))
+
+mushDb.removePermission(1, user, user, 'owners')
+console.table(mushDb.db.prepare('SELECT * FROM permissions').all())

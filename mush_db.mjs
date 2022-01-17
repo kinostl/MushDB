@@ -19,9 +19,20 @@ export default class MushDB {
     this.db.function('scrypt', (password, salt) =>
       scryptSync(password, salt, 64).toString('hex')
     )
-    this.db.function('in_array', (arr, id) =>
-      JSON.parse(arr).includes(id) ? 1 : 0
+    this.db.function('in_array', (arr, val) =>
+      JSON.parse(arr).includes(val) ? 1 : 0
     )
+    this.db.function('add_to_array', (arr, val) =>
+      JSON.stringify([...new Set([...JSON.parse(arr), val])])
+    )
+    this.db.function('remove_from_array', (arr, val) => {
+      arr = JSON.parse(arr)
+      const index = arr.indexOf(val)
+      if (index !== -1) {
+        arr.splice(index, 1)
+      }
+      return JSON.stringify(arr)
+    })
   }
 
   initializeStatements () {
@@ -30,6 +41,7 @@ export default class MushDB {
     this._createThing = sql`INSERT INTO things (attributes) VALUES (json($attributes))`
     this._getThing = sql`SELECT * FROM things WHERE ref=$ref`
     this._patchThing = sql`UPDATE things SET attributes=json_patch((SELECT attributes FROM things WHERE ref=$ref),json($patch)) WHERE ref=$ref`
+    this._destroyThing = sql`DELETE FROM things WHERE ref=$ref`
 
     this._createUser = sql`INSERT INTO users (name, password, salt, thingref) VALUES ($name, scrypt($password, $salt), $salt, $thingref)`
     this._setGroupOnUser = sql`UPDATE users SET groupref=$groupref WHERE ref=$ref`
@@ -38,6 +50,11 @@ export default class MushDB {
 
     this._signIn = sql`SELECT groupref, name FROM users where name=$name and password=scrypt($password, (SELECT salt FROM users where name=$name))`
     this._checkPerms = sql`SELECT in_array(owners, $groupref) as isOwner, (in_array(readers, $groupref) OR in_array(readers, 'guest')) as isReader, in_array(writers, $groupref) as isWriter FROM permissions WHERE thingref=$thingref`
+
+    this._addPermission = permission =>
+      sql`UPDATE permissions SET ${permission}=add_to_array(${permission}, $newUserRef) WHERE thingref=$thingref`
+    this._removePermission = permission =>
+      sql`UPDATE permissions SET ${permission}=remove_from_array(${permission}, $removedUserRef) WHERE thingref=$thingref`
   }
 
   initializeTables () {
@@ -46,7 +63,7 @@ export default class MushDB {
     sql`CREATE TABLE IF NOT EXISTS things (
       ref INTEGER PRIMARY KEY,
       attributes TEXT
-    )`.run()
+    ) STRICT`.run()
     // things have an owner and attributes. Attributes are arbitrary like any object in a mush. User and Group attributes are stored as a thing.
     // Attributes is stuff that would be an &whatever on a MUSH
 
@@ -57,7 +74,7 @@ export default class MushDB {
       salt TEXT,
       thingref INTEGER REFERENCES things,
       groupref INTEGER REFERENCES groups
-    )`.run()
+    ) STRICT`.run()
     // This is just here to be a storage for passwords and dbrefs
 
     sql`CREATE TABLE IF NOT EXISTS groups (
@@ -65,35 +82,49 @@ export default class MushDB {
       name TEXT UNIQUE,
       users TEXT,
       thingref INTEGER REFERENCES things
-    )`.run()
+    ) STRICT`.run()
     // Stores a Group's name and its users.
     // Every user has a Group of the same name for ease of ownership purposes?
 
     sql`CREATE TABLE IF NOT EXISTS permissions(
-      thingref INTEGER PRIMARY KEY REFERENCES things,
+      thingref INTEGER PRIMARY KEY REFERENCES things ON DELETE CASCADE,
       owners TEXT,
       readers TEXT,
       writers TEXT
-    )`.run()
+    ) STRICT`.run()
     // Lookup table that sees who can mess with a dbref and how
   }
 
   sql () {
-    return strings => this.db.prepare(strings.join(''))
+    return (strings, ...expr) => {
+      const statement = strings
+        .map(
+          (str, index) => str + (expr.length > index ? String(expr[index]) : '')
+        )
+        .join('')
+      return this.db.prepare(statement)
+    }
   }
 
   getPerms (thingref, { groupref }) {
+    const perms = this._checkPerms.get({ thingref, groupref })
+    if (!perms) {
+      return {
+        isReader: false,
+        isWriter: false,
+        isOwner: false
+      }
+    }
+    if (perms.isOwner) {
+      return {
+        isReader: true,
+        isWriter: true,
+        isOwner: true
+      }
+    }
     return Object.fromEntries(
-      Object.entries(this._checkPerms.get({ thingref, groupref })).map(
-        ([key, value]) => [key, Boolean(value)]
-      )
+      Object.entries(perms).map(([key, value]) => [key, Boolean(value)])
     )
-  }
-
-  setPermissions (dbref, user, newPerms) {
-    const { isWriter } = this.getPermissions(dbref, user)
-    if (!isWriter) return null
-    // update the permissions of the thing
   }
 
   constructPerms (thingref, groupref, isPrivate = false) {
@@ -182,18 +213,26 @@ export default class MushDB {
     const { isOwner } = this.getPerms(thingref, user)
     if (!isOwner) return null
     // checks to see if user has Destroy permissions then destroys the thing associated to the dbref.
-    // if cascade is true, it also deletes everything owned by the dbref
+    this._destroyThing.run({ ref: thingref })
   }
 
-  addOwner (dbref, owner, newUser) {}
-  removeOwner (dbref, owner, newUser) {}
-  addReader (dbref, owner, newUser) {
-    // add 'guest' user to make a Thing publicly visible by default
+  addPermission (thingref, user, newUser, permission) {
+    const { isOwner } = this.getPerms(thingref, user)
+    if (!isOwner) return null
+    this._addPermission(permission).run({
+      thingref,
+      newUserRef: newUser.groupref
+    })
   }
 
-  removeReader (dbref, owner, newUser) {}
-  addWriter (dbref, owner, newUser) {}
-  removeWriter (dbref, owner, newUser) {}
+  removePermission (thingref, user, removedUser, permission) {
+    const { isOwner } = this.getPerms(thingref, user)
+    if (!isOwner) return null
+    this._removePermission(permission).run({
+      thingref,
+      removedUserRef: removedUser.groupref
+    })
+  }
 
   createGroup (user, attributes) {}
   updateGroup (dbref, user, attributes) {}
