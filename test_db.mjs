@@ -3,6 +3,7 @@ import MushDB from './mush_db.mjs'
 const mushDb = new MushDB(':memory:')
 const user = mushDb.signUp('test', 'test')
 console.log('new user', user)
+mushDb.create(user, { name: 'Test Object' }, true)
 mushDb.create(user, { name: 'Test Object' })
 
 console.log('things')

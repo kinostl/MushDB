@@ -94,11 +94,11 @@ export default class MushDB {
     // update the permissions of the thing
   }
 
-  constructPerms (thingref, groupref) {
+  constructPerms (thingref, groupref, isPrivate = false) {
     return {
       thingref,
       owners: JSON.stringify([groupref]),
-      readers: JSON.stringify(['guest', groupref]),
+      readers: JSON.stringify(isPrivate ? [groupref] : ['guest', groupref]),
       writers: JSON.stringify([groupref]),
       destroyers: JSON.stringify([groupref])
     }
@@ -159,14 +159,16 @@ export default class MushDB {
     // set the thing's new attributes
   }
 
-  create ({ groupref }, attributes) {
+  create ({ groupref }, attributes, isPrivate) {
     // put new Thing into table with relevant attributes, and user assigned as its owner.
     // Attributes would be the arbitrary stuff.
     // Permissions is role based access stuff.
     const thing = this._createThing.run({
       attributes: JSON.stringify(attributes)
     })
-    this._addPerms.run(this.constructPerms(thing.lastInsertRowid, groupref))
+    this._addPerms.run(
+      this.constructPerms(thing.lastInsertRowid, groupref, isPrivate)
+    )
   }
 
   destroy (dbref, user, cascade) {
