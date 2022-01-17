@@ -1,0 +1,15 @@
+{
+  "name": "mush_middleware",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^7.4.6",
+    "sshpk": "^1.17.0"
+  }
+}
