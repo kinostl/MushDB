@@ -1,10 +1,11 @@
 import MushDB from './mush_db.mjs'
 
 const mushDb = new MushDB(':memory:')
-const user = mushDb.signUp('test', 'test')
+const user = mushDb.createUser('test', 'test')
 console.log('new user', user)
-mushDb.create(user, { name: 'Test Object' }, true)
-mushDb.create(user, { name: 'Test Object' })
+mushDb.createThing(user, { name: 'Test Object' }, true)
+const createdThing = mushDb.createThing(user, { name: 'Test Object' })
+console.log('createdThing', createdThing)
 
 console.log('things')
 console.table(mushDb.db.prepare('SELECT * FROM things').all())
@@ -34,12 +35,42 @@ console.table(
 )
 
 console.log('perms checks')
-console.log(mushDb._checkPerms.get({ thingref: 2, groupref: 1 }))
-console.log(mushDb._checkPerms.get({ thingref: 2, groupref: 'guest' }))
+console.log(mushDb._checkPerms.get({ thingref: 3, groupref: 1 }))
+console.log(mushDb._checkPerms.get({ thingref: 3, groupref: 2 }))
+console.log(mushDb._checkPerms.get({ thingref: 2, groupref: 2 }))
 
 console.log('getPerms check')
-console.log(mushDb.getPerms(2, user))
-console.log(mushDb.getPerms(2, { groupref: 'guest' }))
+console.log(mushDb.getPerms(3, user))
+console.log(mushDb.getPerms(3, { groupref: 'guest' }))
 
 console.log('getThing check')
 console.log(mushDb.getThing(1, user))
+console.log(mushDb.getThing(3, user))
+console.log(mushDb.getThing(3, { groupref: 'guest' }))
+
+console.log('update thing')
+mushDb.patchThing(createdThing, user, {
+  name: 'Edit Test Object',
+  title: 'New Moon'
+})
+console.log(mushDb.getThing(createdThing, user))
+
+console.log('update thing 2')
+mushDb.patchThing(
+  createdThing,
+  { groupref: 5 },
+  {
+    name: 'Edit Test Object 2',
+    title: 'Twilight'
+  }
+)
+console.log(mushDb.getThing(createdThing, user))
+console.log(mushDb.getThing(createdThing, { groupref: 5 }))
+
+console.log('update thing 3')
+mushDb.patchThing(createdThing, user, {
+  name: 'Edit Test Object',
+  title: null,
+  description: 'I do not like movies'
+})
+console.log(mushDb.getThing(createdThing, user))
