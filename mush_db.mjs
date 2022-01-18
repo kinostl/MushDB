@@ -161,6 +161,13 @@ export default class MushDB {
     return this.signIn(name, password)
   }
 
+  destroyUser (user) {
+    this.db.transaction(() => {
+      this.destroyThing(user.thingref, user)
+      this.destroyGroup(user.groupref, user)
+    })()
+  }
+
   signIn (name, password) {
     return this._signIn.get({ name, password })
   }
