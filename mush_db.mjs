@@ -237,20 +237,37 @@ export default class MushDB {
         thingref: groupthing.lastInsertRowid
       })
       this._createPerms.run(
-        this.constructPerms(groupthing.lastInsertRowid, group.lastInsertRowid)
+        this.constructPerms(
+          groupthing.lastInsertRowid,
+          group.lastInsertRowid,
+          true
+        )
       )
     })()
     return group.lastInsertRowid
   }
 
   addUserToGroup (groupref, user, newUser) {
-    const { thingref } = this._getGroupRef.get({ ref: groupref })
-    const { isOwner } = this.getPerms(thingref, user)
+    const { isOwner } = this.getPerms(groupref, user)
     if (!isOwner) return null
 
-    this._addToGroup.run()
+    this._addToGroup.run({
+      thingref: groupref,
+      user: user.ref
+    })
   }
 
-  removeUserFromGroup (groupref, user, removedUser) {}
-  destroyGroup (thingref, user) {}
+  removeUserFromGroup (groupref, user, removedUser) {
+    const { isOwner } = this.getPerms(groupref, user)
+    if (!isOwner) return null
+
+    this._removeFromGroup.run({
+      thingref: groupref,
+      user: user.ref
+    })
+  }
+
+  destroyGroup (groupref, user) {
+    this.destroyThing(groupref, user)
+  }
 }
