@@ -44,12 +44,15 @@ export default class MushDB {
     this._destroyThing = sql`DELETE FROM things WHERE ref=$ref`
 
     this._createUser = sql`INSERT INTO users (name, password, salt, thingref) VALUES ($name, scrypt($password, $salt), $salt, $thingref)`
-    this._setGroupOnUser = sql`UPDATE users SET groupref=$groupref WHERE ref=$ref`
+    this._setGroupOnUser = sql`UPDATE users SET groupref=$groupref WHERE thingref=$thingref`
     this._createGroup = sql`INSERT INTO groups (name, users, thingref) VALUES ($name, json($users), $thingref)`
     this._createPerms = sql`INSERT INTO permissions VALUES ($thingref, json($owners), json($readers), json($writers))`
 
     this._signIn = sql`SELECT groupref, name FROM users where name=$name and password=scrypt($password, (SELECT salt FROM users where name=$name))`
     this._checkPerms = sql`SELECT in_array(owners, $groupref) as isOwner, (in_array(readers, $groupref) OR in_array(readers, 'guest')) as isReader, in_array(writers, $groupref) as isWriter FROM permissions WHERE thingref=$thingref`
+
+    this._addToGroup = sql`UPDATE groups SET users=add_to_array(users, $user) WHERE thingref=$thingref`
+    this._removeFromGroup = sql`UPDATE groups SET users=remove_from_array(users, $user) WHERE thingref=$thingref`
 
     this._addPermission = permission =>
       sql`UPDATE permissions SET ${permission}=add_to_array(${permission}, $newUserRef) WHERE thingref=$thingref`
@@ -68,20 +71,18 @@ export default class MushDB {
     // Attributes is stuff that would be an &whatever on a MUSH
 
     sql`CREATE TABLE IF NOT EXISTS users (
-      ref INTEGER PRIMARY KEY,
+      thingref INTEGER PRIMARY KEY REFERENCES things ON DELETE CASCADE,
       name TEXT UNIQUE, 
       password TEXT, 
       salt TEXT,
-      thingref INTEGER REFERENCES things,
       groupref INTEGER REFERENCES groups
     ) STRICT`.run()
     // This is just here to be a storage for passwords and dbrefs
 
     sql`CREATE TABLE IF NOT EXISTS groups (
-      ref INTEGER PRIMARY KEY,
+      thingref INTEGER PRIMARY KEY REFERENCES things ON DELETE CASCADE,
       name TEXT UNIQUE,
-      users TEXT,
-      thingref INTEGER REFERENCES things
+      users TEXT
     ) STRICT`.run()
     // Stores a Group's name and its users.
     // Every user has a Group of the same name for ease of ownership purposes?
@@ -150,7 +151,7 @@ export default class MushDB {
       })
       const group = this.createGroup({ ref: user.lastInsertRowid }, name)
       this._setGroupOnUser.run({
-        ref: user.lastInsertRowid,
+        thingref: user.lastInsertRowid,
         groupref: group
       })
       this._createPerms.run(
@@ -242,7 +243,14 @@ export default class MushDB {
     return group.lastInsertRowid
   }
 
-  addUserToGroup (groupref, user, newUser) {}
+  addUserToGroup (groupref, user, newUser) {
+    const { thingref } = this._getGroupRef.get({ ref: groupref })
+    const { isOwner } = this.getPerms(thingref, user)
+    if (!isOwner) return null
+
+    this._addToGroup.run()
+  }
+
   removeUserFromGroup (groupref, user, removedUser) {}
   destroyGroup (thingref, user) {}
 }
