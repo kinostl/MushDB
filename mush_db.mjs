@@ -142,29 +142,19 @@ export default class MushDB {
       const userthing = this._createThing.run({
         attributes: JSON.stringify({ name, type: 'user' })
       })
-      const groupthing = this._createThing.run({
-        attributes: JSON.stringify({ name, type: 'group' })
-      })
       const user = this._createUser.run({
         name,
         password,
         thingref: userthing.lastInsertRowid,
         salt: randomBytes(16).toString('hex')
       })
-      const group = this._createGroup.run({
-        name,
-        users: JSON.stringify([user.lastInsertRowid]),
-        thingref: groupthing.lastInsertRowid
-      })
+      const group = this.createGroup({ ref: user.lastInsertRowid }, name)
       this._setGroupOnUser.run({
         ref: user.lastInsertRowid,
-        groupref: group.lastInsertRowid
+        groupref: group
       })
       this._createPerms.run(
-        this.constructPerms(userthing.lastInsertRowid, group.lastInsertRowid)
-      )
-      this._createPerms.run(
-        this.constructPerms(groupthing.lastInsertRowid, group.lastInsertRowid)
+        this.constructPerms(userthing.lastInsertRowid, group)
       )
     })()
     return this.signIn(name, password)
@@ -234,7 +224,25 @@ export default class MushDB {
     })
   }
 
-  createGroup (user, attributes) {}
-  updateGroup (dbref, user, attributes) {}
-  destroyGroup (dbref, user, cascade) {}
+  createGroup (user, groupName) {
+    let group
+    this.db.transaction(() => {
+      const groupthing = this._createThing.run({
+        attributes: JSON.stringify({ name: groupName, type: 'group' })
+      })
+      group = this._createGroup.run({
+        name: groupName,
+        users: JSON.stringify([user.ref]),
+        thingref: groupthing.lastInsertRowid
+      })
+      this._createPerms.run(
+        this.constructPerms(groupthing.lastInsertRowid, group.lastInsertRowid)
+      )
+    })()
+    return group.lastInsertRowid
+  }
+
+  addUserToGroup (groupref, user, newUser) {}
+  removeUserFromGroup (groupref, user, removedUser) {}
+  destroyGroup (thingref, user) {}
 }
