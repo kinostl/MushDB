@@ -1,12 +1,12 @@
 {
-  "name": "mush_middleware",
+  "name": "mush_db",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A Role Based Access Key Value built over sqlite, inspired by [MUSHes](https://en.wikipedia.org/wiki/MUSH) object oriented databases.",
+  "main": "index.mjs",
   "scripts": {
     "test": "node test_db.mjs"
   },
-  "author": "",
+  "author": "Zone Tempo <kinostl@gmail.com>",
   "license": "ISC",
   "dependencies": {
     "better-sqlite3": "^7.4.6"

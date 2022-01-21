@@ -1,4 +1,4 @@
-import MushDB from './mush_db.mjs'
+import MushDB from './index.mjs'
 
 const mushDb = new MushDB(':memory:')
 const user = mushDb.createUser('test', 'test')
